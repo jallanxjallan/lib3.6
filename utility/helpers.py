@@ -7,8 +7,9 @@
 
 import sys
 import os
-from fuzzywuzzy import process
-from collections import defaultdict
+
+def class_name(obj):
+    return obj.__class__.__name__
 
 def filtered_tuple(tpl, **data):
     d = {snake_case(k1):v1 for k1,v1 in data.items()}
@@ -19,6 +20,25 @@ def snake_case(text):
     
 def title_case(text):
     return text.replace('_', ' ').title()
+    
+class lazyloader(object):
+    """
+    Lazy-loading read-only property descriptor.
+    Value is computed and stored in owner class object's dictionary on first
+    access. Subsequent calls use value in owner class object's dictionary
+    directly.
+    """
+
+    def __init__(self, func):
+        self._func = func
+        self.__name__ = func.__name__
+        self.__doc__ = func.__doc__
+
+    def __get__(self, obj, obj_class):
+        if obj is None:
+            return obj
+        obj.__dict__[self.__name__] = self._func(obj)
+        return obj.__dict__[self.__name__]
     
 #~ def normalize_dict_keys(data, key_list):
     #~ def normalize_key(key, key_list):

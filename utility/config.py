@@ -15,8 +15,6 @@ import yaml
 #yaml loader unsafe. Need to write my own nested tupler
 yaml.warnings({'YAMLLoadWarning': False})
 
-BASEDIR = '/home/jeremy/projects'
-
 
 def load_config(filepath=None):
     config_path = filepath or os.getcwd()

@@ -6,10 +6,11 @@
 #  Copyright 2018 Jeremy Allan <jeremy@Jeremyallan.com>
 
 
-
+import sys
 import os
 import re
 import attr
+from pathlib import Path
 
 
 from pdfminer.pdfparser import PDFParser
@@ -24,42 +25,80 @@ from pdfminer.layout import LAParams, LTTextBox, LTTextLine
 from pdfminer.converter import PDFPageAggregator
 
 from pdf2image import convert_from_path
-import pytesseract
+from pytesseract import image_to_string
 
 import spacy
 
+sys.path.append('/home/jeremy/Library')
+from utility.helpers import lazyloader
+from language.match_text_passage import match_text_passage
 
+@attr.s
+class OCRText():
+    pdf_source = attr.ib()
+    ocred_text = attr.ib(factory=dict) 
+    
+    @lazyloader
+    def nlp(self):
+        return spacy.load('en_core_web_sm', disable=['ner', 'pos', 'parser'])
+    
+    @lazyloader
+    def page_images(self):
+        return {n:i for n, i in enumerate(convert_from_path(self.pdf_source))}
+        
+    def get_ocred_text(self, page_no):
+        try:
+            return self.ocred_text[page_no] 
+        except KeyError:
+            self.ocred_text[page_no] = self.nlp(image_to_string(self.page_images[page_no]))
+            return self.ocred_text[page_no]
+            
+    # deal with alternative conditions eg cid at beginning of text
+    # count cid tokens to estimate length of text
+    # increment start/end strings until unique match with approx repl text length is found. 
+    def replace_cid_text(self, mined_text, page_no):
+        ocred_text = self.get_ocred_text(page_no)
+       
+        
+        # replace cid with q so each cid token is one character 
+        # extract unique string sequence from mined_text and find in ocred page
+        # grab preceeding and succeeding ocred text using character count from key string in mined text
+        # split into lines and run through diff
+        # replace qqs in mined text with deltas in diff.
+        spl_text = re.split(r'(qq+)', re.sub(r'\(cid\:\d+\)', 'qq', mined_text))
+        for no, seg_text in [(n,t) for n,t in enumerate(spl_text) if 'qq' in t]:
+            try:
+                head = match_text_passage(spl_text[no - 1], ocred_text)
+            except:
+                continue
+            try:
+                tail = match_text_passage(spl_text[no + 1], ocred_text)
+            except:
+                continue
+            spl_text[no] = ocred_text[head[-1].i:tail[0].i].text
+            
+        return '\n'.join(spl_text)
 
 @attr.s
 class TextItem():
-    text_box = attr.ib()
+    text_box= attr.ib()
     layout = attr.ib()
+    box_no = attr.ib()
     page_no = attr.ib()
     document = attr.ib()
     
     @property
-    def doc(self):
-        if not hasattr(self, "_doc"):
-            setattr(self, "_doc", self.document.nlp(self.text_box.get_text()))
-        return self._doc
-
+    def text(self):
+        text = self.text_box.get_text()
+        if 'cid:' in text:
+            text =  self.document.ocred_text.replace_cid_text(text, self.page_no)
+        return text
+    
 class PDFDocument():
     def __init__(self, pdf_source):
         self.pdf_source = pdf_source
-        
-        
-    @property
-    def images(self):
-        if not hasattr(self, "_images"):
-            setattr(self, "_images", convert_from_path(self.pdf_source))
-        return self._images
+        self.ocred_text = OCRText(pdf_source) 
     
-    @property
-    def nlp(self):
-        if not hasattr(self, "_nlp"):
-            setattr(self, "_nlp", spacy.load('en_core_web_sm'))
-        return self._nlp
-
     def parse_document(self):
         with open(self.pdf_source, "rb") as infile:
             # Create parser object to parse the pdf content
@@ -91,14 +130,15 @@ class PDFDocument():
             # Ok now that we have everything to process a pdf document, lets process it page by page
             
             
-            for no, page in enumerate(PDFPage.create_pages(document)):
+            for page_no, page in enumerate(PDFPage.create_pages(document)):
                 # As the interpreter processes the page stored in PDFDocument object
                 interpreter.process_page(page)
                 layout = device.get_result()
                 
-                for text_box in [b for b in layout if isinstance(b, LTTextBox)]:
-                    yield TextItem(text_box, layout, no, self)
-
+                
+                for box_no, text_box in enumerate([b for b in layout if isinstance(b, LTTextBox)]):
+                    yield TextItem(text_box, layout, box_no, page_no, self)
+                    
 
 ''' This is what we are trying to do:
 1) Transfer information from PDF file to PDF document object. This is done using parser
