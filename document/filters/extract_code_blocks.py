@@ -10,15 +10,18 @@ Pandoc filter using panflute
 """
 
 import panflute as pf
+from pathlib import Path
 
 def prepare(doc):
-    pass
+    doc.code_blocks = []
 
 def action(elem, doc):
-    pass
+    if isinstance(elem, pf.CodeBlock):
+        doc.code_blocks.append(elem.text)
+        return []
 
 def finalize(doc):
-    pass
+    Path(doc.get_metadata('code_block_output')).write_text('\n'.join(doc.code_blocks))
 
 def main(doc=None):
     return pf.run_filter(action,

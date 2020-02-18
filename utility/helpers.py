@@ -2,25 +2,29 @@
 # -*- coding: utf-8 -*-
 #
 #  module.py
-#  
+#
 #  Copyright 2019 Jeremy Allan <jeremy@jeremyallan.com>
 
 import sys
 import os
+import uuid
+
+def identifier(length=8):
+    return uuid.uuid4().hex[:8]
 
 def class_name(obj):
     return obj.__class__.__name__
 
 def filtered_tuple(tpl, **data):
     d = {snake_case(k1):v1 for k1,v1 in data.items()}
-    return tpl(**{k:v for k,v in d.items() if k in tpl._fields}) 
-    
+    return tpl(**{k:v for k,v in d.items() if k in tpl._fields})
+
 def snake_case(text):
     return text.lower().replace(' ', '_')
-    
+
 def title_case(text):
     return text.replace('_', ' ').title()
-    
+
 class lazyloader(object):
     """
     Lazy-loading read-only property descriptor.
@@ -39,7 +43,7 @@ class lazyloader(object):
             return obj
         obj.__dict__[self.__name__] = self._func(obj)
         return obj.__dict__[self.__name__]
-    
+
 #~ def normalize_dict_keys(data, key_list):
     #~ def normalize_key(key, key_list):
         #~ choice, score = process.extractOne(key, key_list)
@@ -47,7 +51,7 @@ class lazyloader(object):
             #~ return snake_case(choice)
         #~ else:
             #~ return key
-            
+
     #~ cleaned = defaultdict(dict)
     #~ for key, value in data.items():
         #~ if type(value) is dict:
@@ -55,11 +59,11 @@ class lazyloader(object):
                 #~ cleaned[key][normalize_key(key, key_list)] = v
         #~ else:
             #~ cleaned[normalize_key(key, key_list)] = value
-    
+
     #~ for key in key_list:
         #~ try:
             #~ cleaned[key]
         #~ except KeyError:
-            
-    
+
+
     #~ return cleaned

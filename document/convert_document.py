@@ -10,11 +10,34 @@ import logging
 from pathlib import Path
 import pypandoc
 
+DEFAULT_FORMAT = 'markdown'
 
-def format_kwargs(**kwargs):
+def pandoc_format_map(filepath):
+    """Return output format for source filename"""
+    mapping = dict(
+        md=DEFAULT_FORMAT,
+        txt=DEFAULT_FORMAT,
+        pdf='context'
+    )
+
+    fp = Path(filepath) if type(filepath) is str else filepath
+    suffix = fp.suffix.lstrip('.')
+    return mapping.get(suffix, suffix)
+
+def format_arguments(target, kwargs):
+    try:
+        output = target[0]
+    except IndexError:
+        output = DEFAULT_FORMAT
     keyword_args = defaultdict(list)
+    keyword_args['encoding'] = 'UTF-8'
+    for k,v in kwargs.items():
+        keyword_args[k] = v
+    if not output in pypandoc.get_pandoc_formats()[1]:
+        keyword_args['outputfile'] = str(output)
+        keyword_args['extra_args'].append('--standalone')
+        output = pandoc_format_map(output)
 
-    keyword_args['format'] = 'markdown'
 
     if kwargs.get('filters'):
         for filter_name in kwargs['filters']:
@@ -25,50 +48,36 @@ def format_kwargs(**kwargs):
         for k,v in metadata.items():
             keyword_args['extra_args'].append(f'--metadata={k}:{v}')
 
-    if len(output) > 0:
-        if output[0] in pypandoc.get_pandoc_formats():
-            output = output[0]
-        else:
-            keyword_args['outputfile'] = output[0]
-            output = None
+    if kwargs.get('extensions'):
+        output += '+' + '+'.join((e for e in kwargs['extensions']))
 
-    output = 'markdown'
-    kwargs = {k:v for k,v in keyword_args.items()}
-    return str(source), output, **kwargs
+    return output, {k:v for k,v in keyword_args.items()}
 
 
-@format_args
-def convert_text(source, output, **kwargs):
-    print('output', output)
-    print('kwargs', kwargs)
+def convert_text(source_text, *target, **kwargs):
+    if not 'format' in kwargs:
+        kwargs['format'] = DEFAULT_FORMAT
+    output, keyword_args = format_arguments(target, kwargs)
 
-    rs = pypandoc.convert_text(source, output, **kwargs)
-    #~ try:
-        #~ rs = pypandoc.convert_text(source, output, **kwargs)
-    #~ except Exception as e:
-        #~ logging.info(e)
-        #~ return False
-    #~ if outputfile:
-        #~ return True
+    try:
+        rs = pypandoc.convert_text(source_text, output, **keyword_args)
+    except Exception as e:
+        logging.info(e)
+        return False
+    return rs.strip("\n")
+
+def convert_file(source_filepath, *target, **kwargs):
+    output, keyword_args = format_arguments(target, kwargs)
+
+    try:
+        rs = pypandoc.convert_file(str(source_filepath), output, **keyword_args)
+    except FileNotFoundError:
+        logging.info(f'unable to import {source}')
+        return False
+    except RuntimeError as e:
+        logging.info(f'unable to import {source}')
+        return False
+    except Exception as e:
+        logging.info(f'unable to import {source}')
+        return False
     return rs
-
-@format_args
-def convert_file(source, output, **kwargs):
-    rs = pypandoc.convert_file(source, output, **kwargs)
-    #~ try:
-
-    #~ except FileNotFoundError:
-        #~ logging.info(f'unable to import {source}')
-        #~ return False
-    #~ except RuntimeError as e:
-        #~ logging.info(f'unable to import {source}')
-        #~ return False
-    #~ except Exception as e:
-        #~ logging.info(f'unable to import {source}')
-        #~ return False
-    #~ if outputfile:
-        #~ return True
-    #~ return rs
-    if len(rs) > 5:
-        return rs
-    return True
