@@ -1,0 +1,70 @@
+---
+reader: FORMAT[EXTENSIONS]
+writer: FORMAT[EXTENSIONS]
+output-file: FILE
+input-file: FILE
+input-files: LIST
+data-dir: DIRECTORY
+metadata: KEY,VALUE
+metadata-files: FILE
+file-scope: TRUE
+standalone: TRUE
+template: FILE
+variables: KEY,VALUE
+wrap: AUTO|NONE|PRESERVE
+ascii: TRUE
+toc: TRUE
+toc-depth: NUMBER
+number-sections: TRUE
+number-offset: NUMBERS
+extract-media: PATH
+resource-path: SEARCHPATH (AS LIST)
+include-in-header: FILES
+include-before-body: FILES
+include-after-body: FILES
+highlight-style: STYLE|FILE
+syntax-definitions: KEY,VALUE
+dpi: NUMBER
+eol: CRLF|LF|NATIVE
+columns: NUMBER
+preserve-tabs: TRUE
+tab-stop: NUMBER
+pdf-engine: PROGRAM
+pdf-engine-opts:
+reference-doc: FILE
+self-contained: TRUE
+request-headers: True
+abbreviations: FILE
+indented-code-classes: STRINGS (AS LIST)
+default-image-extension: EXTENSION
+filters: LIST
+shift-heading-level-by: NUMBER
+strip-empty-paragraphs: TRUE
+track-changes: ACCEPT|REJECT|ALL
+strip-comments: TRUE
+reference-links: TRUE
+reference-location: BLOCK|SECTION|DOCUMENT
+atx-headers: TRUE
+listings: TRUE
+incremental: TRUE
+slide-level: NUMBER
+section-divs: TRUE
+html-q-tags: TRUE
+email-obfuscation: NONE|JAVASCRIPT|REFERENCES
+title-prefix: STRING
+css: FILE
+epub-subdirectory: DIRNAME
+epub-cover-image: FILE
+epub-metadata: FILE
+epub-fonts: True
+epub-chapter-level: NUMBER
+ipynb-output: ALL|NONE|BEST
+bibliography: FILE
+metadata:
+csl: FILE
+metadata: FILE
+citation-abbreviations: FILE
+cite-method: NATBIB
+cite-method: BIBLATEX
+html-math-method:
+extract-media: PATH

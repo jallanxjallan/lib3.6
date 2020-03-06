@@ -9,23 +9,30 @@
 
 import sys
 import os
-import namedtupled
+from pathlib import Path
 import yaml
 
 #yaml loader unsafe. Need to write my own nested tupler
-yaml.warnings({'YAMLLoadWarning': False})
+# yaml.warnings({'YAMLLoadWarning': False})
 
 
-def load_config(filepath=None):
-    config_path = filepath or os.getcwd()
-    if not config_path.endswith('yaml'):
-        config_path = os.path.join(config_path, 'config.yaml')
-    try:
-        return namedtupled.yaml(path=config_path)
-    except FileNotFoundError:
-        print(config_path, ' not found')
-        return False
+def load_config(arg):
+    if type(arg) is dict:
+        return arg
+    elif type(arg) is str and arg.endswith('.yaml'):
+        try:
+            with Path(arg).open() as infile:
+                return yaml.load(infile)
+        except FileNotFoundError as e:
+            print(f'Could not load {arg}')
+            raise e
+    elif type(arg) is str:
+        return yaml.load(arg)
+    else:
+        print('Not a config file')
+        raise TypeError
 
+'''
 def nested_tuple(mapping, name):
     def tupperware(mapping):
         if isinstance(mapping, collections.Mapping):
@@ -33,7 +40,7 @@ def nested_tuple(mapping, name):
                 mapping[key] = tupperware(value)
             return nested_tuple(mapping)
         return mapping
-    
+
     this_namedtuple_maker = collections.namedtuple(name, mapping.keys())
     return this_namedtuple_maker(**mapping)
 
@@ -45,5 +52,4 @@ class ConfigBase():
     def load_dict(self, filename):
         mapping = self.load_nt(filename)
         return namedtupled.reduce(mapping)
-        
-
+'''
