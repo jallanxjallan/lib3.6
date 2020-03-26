@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 import yaml
 import subprocess
+import pypandoc
 
 sys.path.append('/home/jeremy/Library/')
 from utility.config import load_config
@@ -33,55 +34,46 @@ def pandoc_format_map(filepath):
     suffix = fp.suffix.lstrip('.')
     return mapping.get(suffix, suffix)
 
-def format_arguments(kwargs):
-    args = {}
+def format_arguments(target, kwargs):
+    try:
+        output = target[0]
+    except IndexError:
+        output = DEFAULT_FORMAT
+    keyword_args = defaultdict(list)
+    for k,v in kwargs.items():
+        keyword_args[k] = v
+    if not output in pypandoc.get_pandoc_formats()[1]:
+        keyword_args['outputfile'] = str(output)
+        keyword_args['extra_args'].append('--standalone')
+        output = pandoc_format_map(output)
+
 
     if kwargs.get('filters'):
-        args['filters'] = [str(filter_path.joinpath(f).with_suffix('.py')) for f in kwargs['filters']]
+        for filter_name in kwargs['filters']:
+            f = Path(filter_name)
+            keyword_args['filters'].append(str(filter_path.joinpath(f).with_suffix('.py')))
 
-
+    if kwargs.get('metadata'):
+        for k,v in kwargs['metadata'].items():
+            keyword_args['extra_args'].append(f'--metadata={k}:{v}')
 
     if kwargs.get('extensions'):
-        args['to' output += '+' + '+'.join((e for e in kwargs['extensions']))
+        output += '+' + '+'.join((e for e in kwargs['extensions']))
 
     return output, {k:v for k,v in keyword_args.items()}
 
-def text_to_text(text, input_format=None, output_format=None, **args):
-        pass
 
-def text_to_file(text, input_format=None, **args):
-        pass
-
-def file_to_text(filepath, output_format=None, **args):
-        pass
-
-def file_to_file(input_filepath, output_filepath, **args):
-        pass
-
-def files_to_files(input_filepaths, output_filepaths, **args):
-        pass
-
-def files_to_file(input_filepaths, output_filepath, args):
-        pass
-
-
-def convert_text(source_text, target, **args):
+def convert_text(source_text, *target, **kwargs):
     if type(source_text) is list:
         source_text = '\n\n'.join(source_text)
-    if not 'to' in args:
-        kwargs['to'] = DEFAULT_FORMAT
-
-    args['text'] = source_text
-
-    args = format_arguments(kwargs)
-    if target == 'text':
-
-    output, keyword_args =
+    if not 'format' in kwargs:
+        kwargs['format'] = DEFAULT_FORMAT
+    output, keyword_args = format_arguments(target, kwargs)
 
     try:
         rs = pypandoc.convert_text(source_text, output, **keyword_args)
     except Exception as e:
-        logging.info(e)
+        print(e)
         return False
     return rs.strip("\n")
 
@@ -103,7 +95,7 @@ def convert_file(source_filepath, *target, **kwargs):
         return target
     return rs
 
-def run_converter(input, output=None):
+def combine_files(input_args, output_args=None):
     def write_args_file(args):
         __, args = format_arguments(args['output-file'], args)
         arg_filepath = Path(tmpdir, uuid4().hex).with_suffix('.yaml')
@@ -127,7 +119,3 @@ def run_converter(input, output=None):
                 output_args['input-files'] = output_files
                 write_args_file(output_args)
         subprocess.run(['bash', str(batch_filepath)])
-        if output and 'text' in output:
-            return Path(output['output-file']).read_text()
-        else:
-            return True

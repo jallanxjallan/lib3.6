@@ -8,6 +8,7 @@
 import sys
 import os
 import uuid
+from pathlib import Path
 
 def identifier(length=8):
     return uuid.uuid4().hex[:8]
@@ -24,6 +25,7 @@ def snake_case(text):
 
 def title_case(text):
     return text.replace('_', ' ').title()
+
 
 class lazyloader(object):
     """

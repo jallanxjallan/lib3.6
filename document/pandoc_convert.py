@@ -54,9 +54,10 @@ def combine_files(args_filepath, *input_files, **output_args):
         pandoc_commands.append(f'pandoc -d {write_config_file(output_args)}')
 
 
-
         bash_filepath = temppath.joinpath('batch_file.sh')
         bash_filepath.write_text('\n'.join(pandoc_commands))
 
-        rs = subprocess.run(['bash', str(bash_filepath)])
-        print(rs)
+        rs = subprocess.run(['bash', str(bash_filepath)], stdout=subprocess.PIPE)
+        if len(rs.stdout) == 0:
+            return output_args['output-file']
+        return rs.stdout
