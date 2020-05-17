@@ -14,34 +14,9 @@ import attr
 from lxml import etree
 import base64
 from fuzzywuzzy import fuzz
+from ruamel.yaml import YAML
+from ruamel.yaml.compat import StringIO
 
-logger = logging.getLogger(__name__)
-
-token_specification = [
-    ('bulleted', r"•"),
-    ('numbered', r"[0-9]"),
-    ('checked', r"☑"),
-    ('unchecked', r"☐")
-    ]
-tok_regex = '|'.join('^(?P<%s>%s.*.?)$' % pair for pair in token_specification)
-
-
-@attr.s
-class ListItem():
-    text = attr.ib()
-
-@attr.s
-class TextItem():
-    text = attr.ib()
-    kind = attr.ib(default='text')
-
-@attr.s
-class Anchor():
-    anchor = attr.ib()
-    node = attr.ib()
-
-    def __attrs_post_init__(self):
-        self.name = self.anchor.values().pop(0)
 
 @attr.s
 class Link():
@@ -59,11 +34,11 @@ class Link():
             self.filepath = Path(base64.b64decode(args[1]).decode())
         elif args[0] == 'web':
             self.url = args[1]
-
         elif args[0] == 'node':
             self.node_id = args[1]
             if len(args) > 2:
                 self.node_anchor = args[2]
+
 
 @attr.s
 class Node():
@@ -73,51 +48,24 @@ class Node():
         for k,v in self.node.attrib.items():
             setattr(self, k, v)
 
+    def read_codebox(self):
+        codebox = self.node.child('codebox')
+        yaml = YAML()
+        return yaml.loads(codebox.text)
 
-    @property
-    def text_items(self):
-        texts = []
-        for elem in [e for e in self.node.iter('rich_text')]:
-            if elem.get('link'):
-                yield Link(elem)
-            else:
-                for line in elem.text.split('\n'):
-                    if re.match(tok_regex, line):
-                        yield ListItem(line)
-                    else:
-                        texts.append(line)
-        if len(texts) > 0:
-            yield elem.parent.name, texts
-
-
-    @property
-    def descendants(self):
-        yield self
-        for child in [d for d in self.node.iterdescendants() if d.get('name')]:
-            yield Node(child)
-
-    @property
-    def ancestors(self):
-        for parent in [p for p in self.node.iterancestors() if p.get('name')]:
-            yield Node(parent)
-
-    @property
-    def parent(self):
-        try:
-            return Node(self.node.get_parent())
-        except Exception as e:
-            print(e)
-            return False
-
-    @property
-    def text(self):
-        for elem in self.node.iter('rich_text'):
-            if elem.getparent().attrib['unique_id'] == self.node.attrib['unique_id']:
-                text = elem.text
-                if text:
-                    yield elem.text.strip('\n')
-
-
+    def write_codebox(self, code):
+        atts = dict(
+            char_offset="0",
+            frame_height="200",
+            frame_width="700",
+            highlight_brackets="True",
+            show_line_numbers="False",
+            syntax_highlighting='yaml',
+            width_in_pixels="True"
+        )
+        e = etree.Element('codebox', atts)
+        e.text = code
+        self.node.append(e)
 
 
     @property
@@ -125,12 +73,11 @@ class Node():
         for link in [l for l in self.node.findall('rich_text[@link]')]:
            yield Link(link)
 
-    @property
-    def anchors(self):
-        for anchor in self.node.findall('encoded_png[@anchor]'):
-           yield Anchor(anchor, self)
-
-
+    def make_file_link(self, filepath, text):
+        link = etree.Element('rich_text', link=base64.b64encode(filepath)
+        link.text=text
+        self.node.append(e)
+        
 class CherryTree():
     def __init__(self, filepath):
         if type(filepath) is str:
@@ -138,6 +85,22 @@ class CherryTree():
         if not filepath.exists():
             raise FileNotFoundError
         self.tree = etree.parse(str(filepath))
+        self.filepath = filepath
+
+    @property
+    def unique_id(self):
+        if not hasattr(self, '_unique_id'):
+            self._unique_id = max([int(n.unique_id) for n in self.nodes()])
+        self._unique_id += 1
+        return str(self._unique_id)
+
+    def save(self, *arg):
+        if arg:
+            filepath = Path(arg[0])
+        else:
+            filepath = self.filepath
+        with filepath.open('wb') as outfile:
+            outfile.write(etree.tostring(self.tree))
 
     @property
     def root(self):
@@ -156,31 +119,9 @@ class CherryTree():
             print(e)
             return False
 
-
     def find_node_by_name(self, name):
         try:
             return Node(self.tree.xpath(f'//node[@name="{name}"]')[0])
         except Exception as e:
             print(e)
             return False
-
-'''
-
-        def match_paths(node):
-            ancestors = [a.name for a in node.ancestors]
-            score = sum([fuzz.ratio(ns, ans) for ns, ans in zip(names, ancestors[-name_length:])]) / name_length
-            if score > 90:
-                return (score, node)
-            else:
-                return None
-
-        names = namepath.split('/')
-        target = names.pop(-1)
-        name_length = len(names)
-        if name_length > 0:
-            qr = Node.select().where(Node.name.startswith(target[0]))
-            path_matches = filter(None, [match_paths(n) for n in qr])
-            return max(path_matches, key=itemgetter(0))[1]
-        else:
-            return Node.get(Node.name == target)
-'''
