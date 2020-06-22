@@ -16,6 +16,8 @@ from lxml.etree import XPathEvalError
 import base64
 import urllib
 
+
+
 @attr.s
 class Codebox():
     element = attr.ib()
@@ -42,13 +44,20 @@ class Link():
             self.href = args[1]
 
 class Node():
-    def __init__(self, node):
-        self.element = node
-        self.name = node.attrib['name']
+    def __init__(self, element):
+        self.element = element
+        self.name = element.attrib['name']
+
+    def insert_element(self, element):
+        try:
+            self.element.append(element)
+        except Exception as e:
+            print ('Insert failed because of', e)
+            return False
+        return True
 
     @property
     def texts(self):
-        # [l for n in itree.elements('Narrative') for t in n.texts for l in t.split("\n") if len(l.strip()) > 0]
         return (e.text for e in self.element.iter('rich_text') if e.text)
 
     @property
@@ -63,18 +72,15 @@ class Node():
     def anchors(self):
         return (Anchor(a) for a in self.element.xpath('encoded_png'))
 
-    def insert_link(self, href, text, target=None):
+    def insert_link(self, href, text, parent=None):
         element = etree.Element('rich_text')
-        href = base64.b64encode(href.encode("utf-8")).decode()
+        href = base64.b64encode(str(href).encode("utf-8")).decode()
         element.attrib['link'] = f'file {href}'
         element.text = text
-        if target:
-            target.element.addnext(element)
-        else:
-            self.element.insert(0, element)
-        return Link(element)
+        return Link(element) if self.insert_element(element) else None
 
-    def insert_codebox(self, content, language='yaml', target=None):
+
+    def insert_codebox(self, content, language='yaml', parent=None):
         atts = dict(
             language=language,
             char_offset="10",
@@ -86,31 +92,19 @@ class Node():
         )
         element = etree.Element('codebox', atts)
         element.text = content
-        if target:
-            target.element.addnext(element)
-        else:
-            self.element.append(element)
-        return Codebox(element)
+        return Codebox(element) if self.insert_element(element) else None
 
 
-    def insert_text(self, content, target=None):
+    def insert_text(self, content, parent=None):
         element = etree.Element('rich_text')
         element.text = content
-        if target:
-            target.element.addnext(element)
-        else:
-            self.element.append(element)
-        return content
+        return content if self.insert_element(element) else None
 
-    def insert_anchor(self, name, target=None):
+    def insert_anchor(self, name, parent=None):
         element = etree.Element('encoded_png',
                                 char_offset="0",
                                 anchor=name)
-        if target:
-            target.element.addnext(element)
-        else:
-            self.element.append(element)
-        return Anchor(element)
+        return Anchor(element) if self.insert_element(element) else None
 
 
 class CherryTree():
@@ -122,13 +116,6 @@ class CherryTree():
         self.tree = etree.parse(str(filepath))
         self.root = self.tree.getroot()
         self.filepath = filepath
-
-    # @property
-    # def unique_id(self):
-    #     if not hasattr(self, '_unique_id'):
-    #         self._unique_id = max([int(n.unique_id) for n in self.nodes() if hasattr(n, 'unique_id')])
-    #     self._unique_id += 1
-    #     return str(self._unique_id)
 
     def save(self, *arg):
         if arg:
@@ -142,17 +129,16 @@ class CherryTree():
         if base:
             if type(base) is str:
                 try:
-                    base_node = self.find_node_by_name(base).node
-                except:
-                    return False
+                    base_node = self.find_node_by_name(base).element
+                except Exception as e:
+                    raise e
             else:
-                base_node = base
+                base_node = base.element
         else:
-            base_node = self.tree.getroot()
-
+            base_node = self.root
         for element in base_node.iter():
             if element.tag == 'node':
-                yield Node(node=element)
+                yield Node(element)
 
     def find_node_by_id(self, id):
         try:
@@ -187,7 +173,7 @@ class CherryTree():
             return False
         return next((Node(n) for n in reversed(m) if n.tag == 'node'), None)
 
-    def insert_node(self, name, target=None):
+    def insert_node(self, name, parent=None, sibling=None):
         unique_id = max([int(id.attrib['unique_id']) for id in self.tree.xpath('//node[@unique_id]')])
         timestamp = str(time.time())
         element = etree.Element('node',
@@ -201,8 +187,14 @@ class CherryTree():
                 ts_creation=timestamp,
                 ts_lastsave=timestamp
             )
-        if target:
-            target.element.addnext(element)
-        else:
-            self.root.append(element)
+        try:
+            if parent:
+                parent.append(element)
+            elif sibling:
+                sibling.addnext(element)
+            else:
+                self.root.append(element)
+        except Exception as e:
+            print(e)
+            raise e
         return Node(element)

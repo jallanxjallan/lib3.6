@@ -26,7 +26,8 @@ class MDDocument():
     content = attr.ib()
     metadata = attr.ib(default=None,
             converter=attr.converters.optional(lambda x: load_yaml(x)))
-    filepath = attr.ib(default=None)
+    filepath = attr.ib(default=None,
+            converter=attr.converters.optional(lambda x: str(x)))
 
     def write_document(self, filepath=None):
         texts = []
@@ -42,17 +43,24 @@ class MDDocument():
         else:
             return text
 
+    def __str__(self):
+        return self.content
+
     def __getattr__(self, att):
         if self.metadata:
-            return self.metadata[att]
+            return self.metadata.get(att)
         else:
             return None
 
 def read_file(filepath):
-    fp = Path(filepath)
-    if not fp.exists():
-        raise FileNotFoundError
-    metadata, content = split_text(fp.read_text())
+    fp = Path(filepath) if type(filepath) is str else filepath
+    try:
+        text = fp.read_text()
+    except FileNotFoundError:
+        return False
+    except IsADirectoryError:
+        return False
+    metadata, content = split_text(text)
     return MDDocument(content, metadata, filepath)
 
 def read_text(text):

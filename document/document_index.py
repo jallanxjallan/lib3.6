@@ -25,14 +25,20 @@ class Document():
     document = attr.ib()
     filepath = attr.ib(converter=lambda x: x.href)
 
+    def __str__(self):
+        return str(self.document)
+
     def __attrs_post_init__(self):
         self.name = self.index.name
-        self.notes = '\n'.join((t for t in self.index.texts))
+        self.notes = '|'.join((t for t in self.index.texts if len(t.strip()) > 0))
 
     def __getattr__(self, attr):
-        if not self.document.metadata:
+        if hasattr(self.index, attr):
+            return getattr(self.index, attr)
+        elif attr in self.document.metadata:
+            return self.document.metadata.get(attr, None)
+        else:
             return None
-        return self.document.metadata.get(attr, None)
 
 
 class DocumentIndex():
@@ -46,25 +52,15 @@ class DocumentIndex():
     def documents(self, base=None):
         for node in self.ct.nodes(base):
             filelink = next((l for l in node.links if l.type == 'file'), None)
+
             if not filelink:
                 continue
+
             document = self.load_document(filelink.href)
+
             if not document:
                 continue
             yield Document(node, document, filelink)
-
-    # def store_document_data(self, node, data):
-    #     if not type(data) is str:
-    #         content = dump_yaml(data)
-    #     else:
-    #         content = data
-    #
-    #     codebox = next((c for c in node.codeboxes), None)
-    #     if codebox:
-    #         codebox.content = content
-    #     else:
-    #         node.insert_codebox(content=dump_yaml(content), language='yaml')
-
 
     def add_document(self, document, filepath):
         if self.ct.find_node_by_text(document.identifier):
