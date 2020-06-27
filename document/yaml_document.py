@@ -5,6 +5,7 @@
 #
 #  Copyright 2019 Jeremy Allan <jeremy@jeremyallan.com>
 
+from pathlib import Path
 import attr
 
 from ruamel.yaml import YAML
@@ -23,6 +24,21 @@ def dump_yaml(data):
 
 def load_yaml(data):
     return yaml.load(data)
+
+def load_yaml_from_string(s):
+    return load_yaml(s)
+
+def load_yaml_from_file(filepath):
+    fp = Path(filepath)
+    return load_yaml(fp.read_text())
+
+def dump_yaml_to_string(data):
+    return dump_html(data)
+
+def dump_yaml_to_file(data, filepath):
+    fp = Path(filepath)
+    fp.write_text(dump_yaml(data))
+
 
 @attr.s
 class YAMLDocument():

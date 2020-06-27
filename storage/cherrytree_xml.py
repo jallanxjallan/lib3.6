@@ -16,8 +16,6 @@ from lxml.etree import XPathEvalError
 import base64
 import urllib
 
-
-
 @attr.s
 class Codebox():
     element = attr.ib()
@@ -47,6 +45,13 @@ class Node():
     def __init__(self, element):
         self.element = element
         self.name = element.attrib['name']
+
+    @property
+    def parent(self):
+        try:
+            return Node(self.element.getparent())
+        except Exception as e:
+            return None
 
     def insert_element(self, element):
         try:
@@ -131,7 +136,8 @@ class CherryTree():
                 try:
                     base_node = self.find_node_by_name(base).element
                 except Exception as e:
-                    raise e
+                    print(e)
+                    return False
             else:
                 base_node = base.element
         else:
@@ -140,19 +146,33 @@ class CherryTree():
             if element.tag == 'node':
                 yield Node(element)
 
-    def find_node_by_id(self, id):
+    def find_node_by_xpath(self, xpath):
         try:
-            return Node(self.tree.xpath(f'//node[@unique_id={id}]')[0])
-        except Exception as e:
-            print(e)
+            m = self.tree.xpath(xpath)
+        except XPathEvalError:
+            print(f'bad xpath {xpath}')
+            return False
+        if not m:
             return False
 
+        if m[0].tag == 'node':
+            return Node(m[0])
+        elif len(m) == 1:
+            return Node(m[0].getparent())
+        else:
+            return next((Node(n) for n in reversed(m) if n.tag == 'node'), None)
+
+    def find_node_by_id(self, id):
+        return self.find_node_by_xpath(f'//node[@unique_id={id}]')
+
     def find_node_by_name(self, name):
-        try:
-            return Node(self.tree.xpath(f'//node[@name="{name}"]')[0])
-        except Exception as e:
-            print(e)
-            return False
+        return self.find_node_by_xpath(f'//node[@name="{name}"]')
+
+    def find_node_by_text(self, text):
+        return self.find_node_by_xpath(f'//*[contains(., "{text}")]')
+
+    def find_node_by_attribute(self, attr, value):
+        return self.find_node_by_xpath(f'//*[@{attr}="{value}"]')
 
     def find_node_by_pattern(self, pat):
         try:
@@ -162,16 +182,6 @@ class CherryTree():
             print(f'bad xpath {pat}')
             return False
         return m
-
-    def find_node_by_text(self, text):
-        try:
-            m = self.tree.xpath(f'//*[contains(., "{text}")]')
-        except XPathEvalError:
-            print(f'bad xpath {text}')
-            return False
-        if not m:
-            return False
-        return next((Node(n) for n in reversed(m) if n.tag == 'node'), None)
 
     def insert_node(self, name, parent=None, sibling=None):
         unique_id = max([int(id.attrib['unique_id']) for id in self.tree.xpath('//node[@unique_id]')])

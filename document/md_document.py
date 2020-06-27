@@ -29,7 +29,7 @@ class MDDocument():
     filepath = attr.ib(default=None,
             converter=attr.converters.optional(lambda x: str(x)))
 
-    def write_document(self, filepath=None):
+    def write_file(self, filepath=None):
         texts = []
         if self.metadata:
             texts.append(dump_yaml(self.metadata))
