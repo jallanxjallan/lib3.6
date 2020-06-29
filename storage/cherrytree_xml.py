@@ -130,21 +130,9 @@ class CherryTree():
         with filepath.open('wb') as outfile:
             outfile.write(etree.tostring(self.tree))
 
-    def nodes(self, base=None):
-        if base:
-            if type(base) is str:
-                try:
-                    base_node = self.find_node_by_name(base).element
-                except Exception as e:
-                    print(e)
-                    return False
-            else:
-                base_node = base.element
-        else:
-            base_node = self.root
-        for element in base_node.iter():
-            if element.tag == 'node':
-                yield Node(element)
+    def nodes(self):
+        for element in [e for e in self.root.iter() if e.tag == 'node']:
+            yield Node(element)
 
     def find_node_by_xpath(self, xpath):
         try:

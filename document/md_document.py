@@ -54,12 +54,13 @@ class MDDocument():
 
 def read_file(filepath):
     fp = Path(filepath) if type(filepath) is str else filepath
-    try:
-        text = fp.read_text()
-    except FileNotFoundError:
+    if not fp.exists():
+            return False
+    elif not fp.is_file():
         return False
-    except IsADirectoryError:
+    elif not fp.suffix == '.md':
         return False
+    text = fp.read_text()
     metadata, content = split_text(text)
     return MDDocument(content, metadata, filepath)
 
