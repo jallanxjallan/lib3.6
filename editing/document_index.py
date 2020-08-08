@@ -74,8 +74,8 @@ class DocumentIndex():
             print(e)
             raise
 
-    def list_entries(self):
-        for node in self.ct.nodes():
+    def entries(self, base_node=None):
+        for node in self.ct.nodes(base_node):
             yield IndexEntry(node)
 
     def save_index(self):

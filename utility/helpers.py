@@ -10,7 +10,7 @@ import os
 import uuid
 from pathlib import Path
 
-def identifier(length=8):
+def make_identifier(length=8):
     return uuid.uuid4().hex[:8]
 
 def class_name(obj):

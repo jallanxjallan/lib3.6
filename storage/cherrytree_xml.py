@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+    #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 #  cherrytree.py
@@ -44,7 +44,13 @@ class Link():
 class Node():
     def __init__(self, element):
         self.element = element
+        self.id = element.attrib['unique_id']
         self.name = element.attrib['name']
+
+    @property
+    def level(self):
+        ans = [a for a in self.element.iterancestors()]
+        return len(ans)
 
     @property
     def parent(self):
@@ -62,8 +68,17 @@ class Node():
         return True
 
     @property
+    def children(self):
+        return (Node(c) for c in self.element.iterchildren('node'))
+
+    @property
+    def descendants(self):
+        return (Node(c) for c in self.element.iterdescendants('node'))
+
+
+    @property
     def texts(self):
-        return (e.text for e in self.element.iter('rich_text') if e.text)
+        return (e.text for e in self.element.iterchildren('rich_text') if e.text)
 
     @property
     def links(self):
@@ -111,7 +126,6 @@ class Node():
                                 anchor=name)
         return Anchor(element) if self.insert_element(element) else None
 
-
 class CherryTree():
     def __init__(self, filepath):
         if type(filepath) is str:
@@ -130,8 +144,20 @@ class CherryTree():
         with filepath.open('wb') as outfile:
             outfile.write(etree.tostring(self.tree))
 
-    def nodes(self):
-        for element in [e for e in self.root.iter() if e.tag == 'node']:
+    def nodes(self, base_arg=None):
+        if base_arg:
+            try:
+                base_node = base_arg.element
+            except AttributeError:
+                try:
+                    base_node = self.find_node_by_name(base_arg).element
+                except Exception as e:
+                    print(e)
+                    return None
+        else:
+            base_node = self.root
+
+        for element in [e for e in base_node.iter() if e.tag == 'node']:
             yield Node(element)
 
     def find_node_by_xpath(self, xpath):
@@ -171,10 +197,10 @@ class CherryTree():
             return False
         return m
 
-    def insert_node(self, name, parent=None, sibling=None):
+    def create_node(self, name):
         unique_id = max([int(id.attrib['unique_id']) for id in self.tree.xpath('//node[@unique_id]')])
         timestamp = str(time.time())
-        element = etree.Element('node',
+        return Node(etree.Element('node',
                 name=name,
                 unique_id=str(unique_id + 1),
                 custom_icon_id="0",
@@ -184,7 +210,12 @@ class CherryTree():
                 readonly="False",
                 ts_creation=timestamp,
                 ts_lastsave=timestamp
-            )
+            ))
+
+    def insert_node(self, element, parent=None, sibling=None):
+        element = element.element if hasattr(element, 'element') else element
+        parent = parent.element if hasattr(parent, 'element') else parent
+        sibling = sibling.element if hasattr(sibling, 'element') else sibling
         try:
             if parent:
                 parent.append(element)

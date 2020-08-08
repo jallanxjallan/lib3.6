@@ -23,7 +23,11 @@ def dump_yaml(data):
     return stream.read()
 
 def load_yaml(data):
-    return yaml.load(data)
+    try:
+        return yaml.load(data)
+    except Exception as e:
+        print(e)
+    return False
 
 def load_yaml_from_string(s):
     return load_yaml(s)

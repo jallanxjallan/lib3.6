@@ -7,19 +7,14 @@
 
 from pathlib import Path
 import attr
+import re
 
 import logging
 logger = logging.getLogger(__name__)
 
 from .yaml_document import load_yaml, dump_yaml
 
-def split_text(text):
-    try:
-        metadata, content = text.split('---')[1:]
-    except ValueError:
-        content = text
-        metadata = None
-    return metadata, content
+split_pat = re.compile('-{3}')
 
 @attr.s
 class MDDocument():
@@ -54,15 +49,21 @@ class MDDocument():
 
 def read_file(filepath):
     fp = Path(filepath) if type(filepath) is str else filepath
-    if not fp.exists():
-            return False
-    elif not fp.is_file():
-        return False
-    elif not fp.suffix == '.md':
-        return False
-    text = fp.read_text()
-    metadata, content = split_text(text)
-    return MDDocument(content, metadata, filepath)
+    if not fp.suffix == '.md':
+        print(fp, 'not a markdown file')
+        raise FileNotFoundError
+    try:
+        text = fp.read_text()
+    except FileNotFoundError:
+        print(fp, 'not found')
+        raise
+    parts = split_pat.split(text, maxsplit=2)
+    try:
+        return MDDocument(parts[2], parts[1], filepath)
+    except Exception as e:
+        print(e)
+        return None
+
 
 def read_text(text):
     metadata, content = split_text(text)
