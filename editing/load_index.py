@@ -28,4 +28,4 @@ def load_index(dindex, base_node=None, columns=None):
                 cols.append(None)
         data.append(cols)
 
-    return pd.DataFrame(data, columns=columns)
+    return pd.DataFrame(data, columns=columns).rename(columns={'name':'name_'})

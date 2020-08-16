@@ -1,63 +1,71 @@
-#!/home/jeremy/PythonEnv3.6/bin/python
-#
-#  module.py
-#
-#  Copyright 2019 Jeremy Allan <jeremy@jeremyallan.com>
+#!/usr/bin/env python
+# coding: utf-8
 
 import sys
-import os
-from collections import defaultdict
-from itertools import tee
-from uuid import uuid4
-from tempfile import TemporaryDirectory
-import logging
+from subprocess import run, Popen, PIPE
+from tempfile import TemporaryDirectory, NamedTemporaryFile
 from pathlib import Path
-import yaml
-import subprocess
-import pypandoc
+import attr
 
-sys.path.append('/home/jeremy/Library/')
-from utility.config import load_config
+sys.path.append('/home/jeremy/Library')
 
-with Path('/home/jeremy/Library/document/pandoc_config_fields.yaml').open() as infile:
-    PANDOC_CONFIG_FIELDS = yaml.load(infile)
+from document.md_document import MDDocument
 
-def combine_files(args_filepath, *input_files, **output_args):
-    def write_config_file(d):
-        data = {k:v for k,v in d.items() if k in PANDOC_CONFIG_FIELDS}
-        filepath = temppath.joinpath(uuid4().hex).with_suffix('.yaml')
-        with filepath.open('w') as outfile:
-            yaml.dump(data, outfile)
-        return filepath
-
-    try:
-        input_args = load_config(args_filepath)
-    except Exception as e:
-        print(e)
-        exit()
-
-    with TemporaryDirectory() as tmpdir:
-        temppath = Path(tmpdir)
-        input_args_file = write_config_file(input_args)
-
-        pandoc_commands = []
-        if type(output_args) is None:
-            output_args = {}
-        output_args['input-files'] = []
-
-        for input_file in input_files:
-
-            output_file = str(temppath.joinpath(uuid4().hex).with_suffix('.md'))
-            output_args['input-files'].append(output_file)
-            pandoc_commands.append(f'pandoc -d {input_args_file} -o {output_file} {str(input_file)}')
-
-        pandoc_commands.append(f'pandoc -d {write_config_file(output_args)}')
+CWD = Path.cwd()
+INTER_PREFIX = 'inter'
+INTER_SUFFIX = '.md'
 
 
-        bash_filepath = temppath.joinpath('batch_file.sh')
-        bash_filepath.write_text('\n'.join(pandoc_commands))
+@attr.s
+class InputArgs():
+    compile_path = attr.ib(default=None)
+    seq = attr.ib(default=None)
+    input_path = attr.ib()
+    output_path = attr.ib()
+    defaults_path = attr.ib(default='generic')
 
-        rs = subprocess.run(['bash', str(bash_filepath)], stdout=subprocess.PIPE)
-        if len(rs.stdout) == 0:
-            return output_args['output-file']
-        return rs.stdout
+    @input_path.default
+    def _temp_glob(self):
+        return str(self.compile_path.joinpath(f'{INTER_PREFIX}*').with_suffix(INTER_SUFFIX))
+
+    @output_path.default
+    def _sequenced_temp_file(self):
+        return str(self.compile_path.joinpath(f'{INTER_PREFIX}_{str(self.seq).zfill(5)}').with_suffix(INTER_SUFFIX))
+
+    def __str__(self):
+        return ','.join((str(self.input_path), str(self.output_path), str(self.defaults_path)))
+
+
+def convert_interfile(inputs, output, defaults):
+    data_path = CWD
+    output_filepath = CWD.joinpath(output)
+    output_defaults_path = data_path
+    input_objs = []
+
+    with TemporaryDirectory() as compile_dir:
+        compile_path = Path(compile_dir)
+        for seq, input in enumerate(inputs):
+            try:
+                input_objs.append(InputArgs(
+                    compile_path=compile_path,
+                    seq=seq,
+                    input_path=input[0].filepath,
+                    defaults_path=input[1]))
+            except Exception as e:
+                print(e)
+                continue
+
+
+        input_objs.append(InputArgs(
+            compile_path=compile_path,
+            output_path=output,
+            defaults_path=defaults
+        ))
+        input_objs.append(',,')
+        input_args = '\n'.join([str(i) for i in input_objs])
+        command_args = ';'.join(["IFS=','",
+            "while read input output defaults", "do pandoc --defaults=$defaults --output=$output $input", "done"])
+        p = Popen(command_args, stdin=PIPE, stdout=PIPE, shell=True, universal_newlines=True)
+        rs = p.communicate(input=input_args, timeout=60)
+
+        return rs

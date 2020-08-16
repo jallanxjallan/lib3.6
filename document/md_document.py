@@ -8,38 +8,53 @@
 from pathlib import Path
 import attr
 import re
+from tempfile import NamedTemporaryFile
 
 import logging
 logger = logging.getLogger(__name__)
 
 from .yaml_document import load_yaml, dump_yaml
 
-split_pat = re.compile('-{3}')
+split_pat = re.compile('^-{3}|\.{3}$')
 
 @attr.s
 class MDDocument():
-    content = attr.ib()
+    content = attr.ib(default=None)
     metadata = attr.ib(default=None,
-            converter=attr.converters.optional(lambda x: load_yaml(x)))
+            converter=attr.converters.optional(lambda x: x))
     filepath = attr.ib(default=None,
-            converter=attr.converters.optional(lambda x: str(x)))
+            converter=attr.converters.optional(lambda x: Path(x)))
+    tempfile = attr.ib(default=False)
+    overwrite = attr.ib(default=False)
 
-    def write_file(self, filepath=None):
+    def _make_document(self):
         texts = []
         if self.metadata:
-            texts.append(dump_yaml(self.metadata))
-        texts.append(self.content)
-
-        text = '\n'.join(texts)
-
-        if filepath:
-            outfile = Path(filepath)
-            outfile.write_text(text)
+            texts.append(dump_yaml(self.metadata).replace('...', '---'))
+        if self.content:
+            texts.append(self.content)
         else:
-            return text
+            texts.append('\n')
+        if len(texts) > 0:
+            self.text = '\n'.join(texts)
+        else:
+            self.text = None
+
+    def write_file(self):
+        self._make_document()
+        if self.tempfile:
+            self.fp = NamedTemporaryFile(suffix='.md')
+            self.filepath = Path(self.fp.name)
+        try:
+            self.filepath.write_text(self.text)
+        except Exception as e:
+            print(e)
+            return False
+        return self.filepath
 
     def __str__(self):
-        return self.content
+        self._make_document()
+        return self.text
 
     def __getattr__(self, att):
         if self.metadata:
@@ -47,24 +62,31 @@ class MDDocument():
         else:
             return None
 
-def read_file(filepath):
-    fp = Path(filepath) if type(filepath) is str else filepath
-    if not fp.suffix == '.md':
-        print(fp, 'not a markdown file')
-        raise FileNotFoundError
-    try:
-        text = fp.read_text()
-    except FileNotFoundError:
-        print(fp, 'not found')
-        raise
-    parts = split_pat.split(text, maxsplit=2)
-    try:
-        return MDDocument(parts[2], parts[1], filepath)
-    except Exception as e:
-        print(e)
-        return None
+    @classmethod
+    def read_file(cls, filepath):
+        fp = Path(filepath) if type(filepath) is str else filepath
+        if not fp.suffix == '.md':
+            print(fp, 'not a markdown file')
+            raise FileNotFoundError
+        try:
+            text = fp.read_text()
+        except FileNotFoundError:
+            print(fp, 'not found')
+            raise
+        parts = split_pat.split(text, maxsplit=2)
 
+        if len(parts) > 1:
+            try:
+                obj = cls(metadata=parts[1], content=parts[2], filepath=fp)
+            except Exception as e:
+                raise e
+        else:
+            return obj
 
-def read_text(text):
-    metadata, content = split_text(text)
-    return MDDocument(content, metadata)
+    @classmethod
+    def read_text(cls, text):
+        metadata, content = split_pat.split(text, maxsplit=2)
+        try:
+            return cls(metadata=metadata, content=content, filepath=fp)
+        except Exception as e:
+            print(e)
