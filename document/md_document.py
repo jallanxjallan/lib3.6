@@ -9,30 +9,53 @@ from pathlib import Path
 import attr
 import re
 from tempfile import NamedTemporaryFile
+from collections import namedtuple
 
 import logging
 logger = logging.getLogger(__name__)
 
+from textblob import TextBlob
+
 from .yaml_document import load_yaml, dump_yaml
 
-split_pat = re.compile('^-{3}|\.{3}$')
+split_pat = re.compile(r'-{3}\n')
+
+def _parse_document(text):
+    parts = split_pat.split(text, maxsplit=2)
+    try:
+        data = dict(metadata=parts[1], content=parts[2])
+    except IndexError:
+        data = dict(content=parts[0])
+    return data
+
+def _handle_yaml(m):
+    if type(m) is str:
+        m = load_yaml(m)
+    M = attr.make_class("MDATA", [k for k in m])
+    return M(*m.values())
+
 
 @attr.s
 class MDDocument():
     content = attr.ib(default=None)
     metadata = attr.ib(default=None,
-            converter=attr.converters.optional(lambda x: x))
+            converter=attr.converters.optional(_handle_yaml))
     filepath = attr.ib(default=None,
             converter=attr.converters.optional(lambda x: Path(x)))
     tempfile = attr.ib(default=False)
     overwrite = attr.ib(default=False)
+    blob = attr.ib(default=False)
+
+    @property
+    def blob(self):
+        return TextBlob(self.content)
 
     def _make_document(self):
         texts = []
         if self.metadata:
-            texts.append(dump_yaml(self.metadata).replace('...', '---'))
+            texts.append(dump_yaml(attr.asdict(self.metadata)).replace('...', '---'))
         if self.content:
-            texts.append(self.content)
+            texts.append(str(self.content))
         else:
             texts.append('\n')
         if len(texts) > 0:
@@ -58,7 +81,7 @@ class MDDocument():
 
     def __getattr__(self, att):
         if self.metadata:
-            return self.metadata.get(att)
+            return getattr(self.metadata, att)
         else:
             return None
 
@@ -73,20 +96,8 @@ class MDDocument():
         except FileNotFoundError:
             print(fp, 'not found')
             raise
-        parts = split_pat.split(text, maxsplit=2)
-
-        if len(parts) > 1:
-            try:
-                obj = cls(metadata=parts[1], content=parts[2], filepath=fp)
-            except Exception as e:
-                raise e
-        else:
-            return obj
+        return cls(filepath=fp, **_parse_document(text))
 
     @classmethod
     def read_text(cls, text):
-        metadata, content = split_pat.split(text, maxsplit=2)
-        try:
-            return cls(metadata=metadata, content=content, filepath=fp)
-        except Exception as e:
-            print(e)
+        return cls(filepath=fp, **_parse_document(text))

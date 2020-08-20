@@ -1,0 +1,97 @@
+#!/home/jeremy/Python3.6Env/bin/python
+# -*- coding: utf-8 -*-
+#
+#  script.py
+#
+#  Copyright 2019 Jeremy Allan <jeremy@jeremyallan.com>
+
+import fire
+from pathlib import Path
+import sys
+import re
+from tempfile import mkdtemp
+import attr
+import subprocess
+
+sys.path.append('/home/jeremy/Library')
+
+from document.yaml_document import load_yaml_from_file, dump_yaml_to_file
+from utility.helpers import make_identifier, title_case, snake_case
+from utility.config import load_config
+
+from storage.cherrytree_xml import CherryTree
+
+@attr.s
+class Creator():
+    index = attr.ib(factory=CherryTree)
+    target_dir = attr.ib(default=None)
+    config = attr.ib(default=load_config)
+
+    def __attrs_post_init__(self):
+        self.metadata = self.config.metadata
+
+    def make_pandoc_args(self):
+        args = [f'--metadata={k}:{v}' for k,v in self.metadata.items()]
+        args.insert(0, 'pandoc')
+        args.append('--defaults=create_document')
+        args.append(f'--output={self.outputfile}')
+        if hasattr(self, 'inputfile'):
+            args.append(self.inputfile})
+        self.pandoc_args = args
+        return self
+
+    def call_pandoc(self, args):
+        p = Popen(args, stdin=PIPE)
+        p.communicate(input=self.content, timeout=5)
+        return self
+
+    def run_pandoc(self, args):
+        subprocess.run(args)
+        return self
+
+    def fill_metadata(self):
+        self.metadata['identifier'] = make_identifier()
+        for key, value in self.metadata.items():
+            new = input(f'Enter {key} <{value}>: ')
+            if new:
+                self.metadata[key] = new
+        return self
+
+    def target_dir(self):
+        t = input(f'Enter document folder <{self.document_dir}>: ')
+        if f:
+            self.config.document_dir
+        return self
+
+
+    def set_output_file(self):
+        target_dir = Path(self.metadata.target_dir)
+        if not target_dir.exists():
+            print(target_dir, 'does not exist')
+            return False
+        filename = snake_case(self.metadata.title)
+        output_file = target_dir.joinpath(filename).with_suffix('.md')
+
+        if output_file.exists():
+            print(output_file, 'already exists')
+            return False
+        self.output_file = output_file
+        return self
+
+    def print_output_url(outputfile):
+        output_url = Path(Path.cwd(), output_file)
+        print(f'file://{output_url}')
+
+
+    def file(self):
+        pass
+
+    def node(self):
+        pass
+
+    def content(self):
+        pass
+
+
+if __name__ == '__main__':
+    fire.Fire(Creator)
