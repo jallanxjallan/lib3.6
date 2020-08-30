@@ -16,8 +16,6 @@ from lxml.etree import XPathEvalError
 import base64
 import urllib
 
-note_pat = re.compile(r'~+')
-
 @attr.s
 class Codebox():
     element = attr.ib()
@@ -77,17 +75,10 @@ class Node():
     def descendants(self):
         return (Node(c) for c in self.element.iterdescendants('node'))
 
-
-    @property
-    def texts(self):
-        return (e.text for e in self.element.iterchildren('rich_text') if e.text)
-
     @property
     def notes(self):
-        try:
-            return note_pat.split('\n'.join(list(self.texts)))[1]
-        except IndexError:
-            return None
+        return '\n'.join(list((e.text for e in self.element.iterchildren('rich_text') if e.text)))
+
 
     @property
     def links(self):

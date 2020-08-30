@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 #  module.py
-#
+#  
 #  Copyright 2019 Jeremy Allan <jeremy@jeremyallan.com>
 
 import sys
@@ -14,13 +14,13 @@ from ruamel.yaml import YAML
 from .convert_document import file_to_text, text_to_text, text_to_file
 
 MARKDOWN = 'markdown_mmd+yaml_metadata_block'
-yaml=YAML(typ='safe')
+yaml=YAML(typ='safe') 
 
 @attr.s
 class Document():
     source = attr.ib()
     meta = attr.ib(factory=dict)
-
+    
     def __attrs_post_init__(self):
         self.content = []
         source_file = Path(self.source)
@@ -29,13 +29,13 @@ class Document():
             is_file = source_file.exists()
         except OSError:
             pass
-
+        
         if not is_file:
             self.content.append(text_to_text(self.source))
         else:
             if self.source.suffix in ('.md', '.txt'):
                 text = self.source.read_text()
-                try:
+                try: 
                     meta, text = text.split('---')[1:]
                 except IndexError:
                     meta = {}
@@ -48,11 +48,11 @@ class Document():
                     self.meta = {}
             else:
                 self.content.append(file_to_text(self.source))
-
+    
     def __str__(self):
         return '\n'.join(self.content)
-
-
+        
+    
     def write_document(self, filepath):
         if type(self.meta) is dict:
             extra_args = [f'--metadata={k}:{v}' for k,v in self.meta.items()]
@@ -60,40 +60,5 @@ class Document():
             extra_args = []
         extra_args.append('--standalone')
         text_to_file(self.content, filepath, extra_args)
-from subprocess import Popen, PIPE
-import json
-from json.decoder import JSONDecodeError
 
-cmds = ['pandoc', '--to=html', '--metadata=title:Website', '--lua-filter=export_meta.lua']
-
-input_str = 'This is a [link](http://jeremyallan.com) to my **website**'
-
-def main():
-    p = Popen(cmds, stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True)
-
-    rs = p.communicate(input=input_str, timeout=5)
-
-    try:
-        metadata = json.loads(rs[1])
-    except JSONDecodeError:
-        print('problem!')
-        return 1
-    print(metadata['title'])
-    print(rs[0])
-
-    @classmethod
-    def read_file(cls, filepath):
-        fp = Path(filepath) if type(filepath) is str else filepath
-        if not fp.suffix == '.md':
-            print(fp, 'not a markdown file')
-            raise FileNotFoundError
-        try:
-            text = fp.read_text()
-        except FileNotFoundError:
-            print(fp, 'not found')
-            raise
-        return cls(filepath=fp, **_parse_document(text))
-
-    @classmethod
-    def read_text(cls, text):
-        return cls(filepath=fp, **_parse_document(text))
+    
