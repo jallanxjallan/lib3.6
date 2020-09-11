@@ -77,8 +77,7 @@ class Node():
 
     @property
     def notes(self):
-        return '\n'.join(list((e.text for e in self.element.iterchildren('rich_text') if e.text)))
-
+        return ' '.join(list((e.text for e in self.element.iterchildren('rich_text') if e.text)))
 
     @property
     def links(self):
@@ -104,6 +103,9 @@ class Node():
         element.text = text
         return Link(element) if self.insert_element(element) else None
 
+    def remove_element(self, object):
+        element = object.element if hasattr(object, 'element') else object
+        self.element.remove(element)
 
     def insert_codebox(self, content, language='yaml', parent=None):
         atts = dict(

@@ -40,10 +40,14 @@ def convert_interfile(inputs, output, defaults):
     data_path = CWD
     output_filepath = CWD.joinpath(output)
     output_defaults_path = data_path
-    input_objs = []
+    commands 
 
     with TemporaryDirectory() as compile_dir:
         compile_path = Path(compile_dir)
+        for input in inputs:
+            if input.input_path:
+
+
         for seq, input in enumerate(inputs):
             try:
                 input_objs.append(InputArgs(

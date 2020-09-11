@@ -9,91 +9,77 @@ import sys
 import os
 import attr
 from pathlib import Path
-from ruamel.yaml import YAML
-
-from .convert_document import file_to_text, text_to_text, text_to_file
-
-MARKDOWN = 'markdown_mmd+yaml_metadata_block'
-yaml=YAML(typ='safe')
+import json
+from json.decoder import JSONDecodeError
+from subprocess import Popen, PIPE
+from textblob import TextBlob
 
 @attr.s
 class Document():
-    source = attr.ib()
-    meta = attr.ib(factory=dict)
+    content = attr.ib(default=None)
+    metadata = attr.ib(default=None,
+            converter=attr.converters.optional(dict))
 
-    def __attrs_post_init__(self):
-        self.content = []
-        source_file = Path(self.source)
-        is_file = False
-        try:
-            is_file = source_file.exists()
-        except OSError:
-            pass
+    @property
+    def blob(self):
+        return TextBlob(self.content)
 
-        if not is_file:
-            self.content.append(text_to_text(self.source))
-        else:
-            if self.source.suffix in ('.md', '.txt'):
-                text = self.source.read_text()
-                try:
-                    meta, text = text.split('---')[1:]
-                except IndexError:
-                    meta = {}
-                except ValueError:
-                    meta = {}
-                self.content.append(text)
-                if len(meta) > 0:
-                    self.meta = yaml.load(meta)
-                else:
-                    self.meta = {}
-            else:
-                self.content.append(file_to_text(self.source))
+    @property
+    def words(self):
+        return len(self.blob.words)
+
+    def __getattr__(self, attr):
+        if attr in self.metadata:
+            return self.metadata[attr]
 
     def __str__(self):
         return '\n'.join(self.content)
 
-
-    def write_document(self, filepath):
-        if type(self.meta) is dict:
-            extra_args = [f'--metadata={k}:{v}' for k,v in self.meta.items()]
-        else:
-            extra_args = []
-        extra_args.append('--standalone')
-        text_to_file(self.content, filepath, extra_args)
-from subprocess import Popen, PIPE
-import json
-from json.decoder import JSONDecodeError
-
-cmds = ['pandoc', '--to=html', '--metadata=title:Website', '--lua-filter=export_meta.lua']
-
-input_str = 'This is a [link](http://jeremyallan.com) to my **website**'
-
-def main():
-    p = Popen(cmds, stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True)
-
-    rs = p.communicate(input=input_str, timeout=5)
-
-    try:
-        metadata = json.loads(rs[1])
-    except JSONDecodeError:
-        print('problem!')
-        return 1
-    print(metadata['title'])
-    print(rs[0])
-
     @classmethod
-    def read_file(cls, filepath):
-        fp = Path(filepath) if type(filepath) is str else filepath
-        if not fp.suffix == '.md':
-            print(fp, 'not a markdown file')
-            raise FileNotFoundError
+    def read_document(cls, filepath=None, text=None, format='markdown'):
+
+        cmds = ['pandoc',
+                '--to=markdown',
+                '--lua-filter=export_meta.lua'
+                ]
+        proc_parms = dict(stdout=PIPE, stderr=PIPE, universal_newlines = True)
+        com_parms = dict(timeout=5)
+
+        if filepath:
+            cmds.append(str(filepath))
+        elif text:
+            cmds.append(f'--from={format}')
+            proc_parms['stdin']= PIPE
+            com_parms['input'] = text
+
+        p = Popen(cmds, **proc_parms)
+
+        rs = p.communicate(**com_parms)
+        metadata = None
         try:
-            text = fp.read_text()
-        except FileNotFoundError:
-            print(fp, 'not found')
-            raise
-        return cls(filepath=fp, **_parse_document(text))
+            metadata = json.loads(rs[1])
+        except JSONDecodeError as e:
+            print(rs[1])
 
-    @classmethod
-    def read_text(cls, text):
-        return cls(filepath=fp, **_parse_document(text))
+        return cls(content=rs[0], metadata=metadata)
+
+    def write_document(self, outputfile=None, standalone=True, format='markdown', **kwargs):
+        cmds = ['pandoc',
+                f'--to={format}',
+                '--from=markdown',
+                ]
+        if outputfile:
+            cmds.append(f'--output={str(outputfile)}')
+        if standalone:
+            cmds.append('-s')
+        if self.metadata:
+            for key, value in self.metadata.items():
+                cmds.append(f'--metadata={key}:{value}')
+        for key,value in kwargs.items():
+            cmds.append(f'--{key}={value}')
+        proc_parms = dict(stdin=PIPE, universal_newlines=True)
+        content = self.content or "\n"
+        com_parms=dict(input=content, timeout=5)
+        p = Popen(cmds, **proc_parms)
+        rs = p.communicate(**com_parms)
+        return rs
